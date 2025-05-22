@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>매치 관리 - 포인트 계산기</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">포인트 계산기</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">홈</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/teams">팀 관리</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/games">게임 관리</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/matches">매치 관리</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">히스토리</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row mb-4">
+            <div class="col">
+                <h2 class="mb-4">매치 관리</h2>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMatchModal">
+                    새 매치 추가
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                {{if .matches}}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>매치 ID</th>
+                                <th>게임</th>
+                                <th>팀1</th>
+                                <th>팀2</th>
+                                <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .matches}}
+                            <tr>
+                                <td>{{.ID}}</td>
+                                <td>{{.GameName}}</td>
+                                <td>{{.Team1Name}}</td>
+                                <td>{{.Team2Name}}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary me-2" onclick="editMatch({{.ID}})">수정</button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteMatch({{.ID}})">삭제</button>
+                                </td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+                {{else}}
+                <div class="alert alert-info">
+                    등록된 매치가 없습니다. 새 매치를 추가해주세요.
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+
+    <!-- 새 매치 추가 모달 -->
+    <div class="modal fade" id="addMatchModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">새 매치 추가</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addMatchForm">
+                        <div class="mb-3">
+                            <label for="gameId" class="form-label">게임</label>
+                            <select class="form-select" id="gameId" required>
+                                <option value="">게임을 선택하세요</option>
+                                {{range .games}}
+                                <option value="{{.ID}}">{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="team1Id" class="form-label">팀1</label>
+                            <select class="form-select" id="team1Id" required>
+                                <option value="">팀을 선택하세요</option>
+                                {{range .teams}}
+                                <option value="{{.ID}}">{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="team2Id" class="form-label">팀2</label>
+                            <select class="form-select" id="team2Id" required>
+                                <option value="">팀을 선택하세요</option>
+                                {{range .teams}}
+                                <option value="{{.ID}}">{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="submitMatch()">추가</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 매치 수정 모달 -->
+    <div class="modal fade" id="editMatchModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">매치 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editMatchForm">
+                        <input type="hidden" id="editMatchId">
+                        <div class="mb-3">
+                            <label for="editGameId" class="form-label">게임</label>
+                            <select class="form-select" id="editGameId" required>
+                                <option value="">게임을 선택하세요</option>
+                                {{range .games}}
+                                <option value="{{.ID}}">{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editTeam1Id" class="form-label">팀1</label>
+                            <select class="form-select" id="editTeam1Id" required>
+                                <option value="">팀을 선택하세요</option>
+                                {{range .teams}}
+                                <option value="{{.ID}}">{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editTeam2Id" class="form-label">팀2</label>
+                            <select class="form-select" id="editTeam2Id" required>
+                                <option value="">팀을 선택하세요</option>
+                                {{range .teams}}
+                                <option value="{{.ID}}">{{.Name}}</option>
+                                {{end}}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="submitEditMatch()">수정</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">© 2024 포인트 계산기. All rights reserved.</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/matches.js"></script>
+</body>
+</html> 

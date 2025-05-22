@@ -50,7 +50,16 @@ func (s *TeamService) UpdateTeam(inputTeam model.Team) (model.Team, error) {
 		return model.Team{}, err
 	}
 
+	// 이름이 변경되는 경우에만 중복 체크
+	if team.Name != inputTeam.Name {
+		var existingTeam model.Team
+		if err := s.db.Where("name = ? AND id != ? AND use_yn = 'Y'", inputTeam.Name, inputTeam.ID).First(&existingTeam).Error; err == nil {
+			return model.Team{}, errors.New("team already exists")
+		}
+	}
+
 	team.Name = inputTeam.Name
+	team.Point = inputTeam.Point
 	if err := s.db.Save(&team).Error; err != nil {
 		return model.Team{}, err
 	}
