@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: point_calculator_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root  # 루트 비밀번호
+      MYSQL_DATABASE: point_calculator   # 생성할 데이터베이스 이름
+      MYSQL_USER: root                   # 일반 사용자 계정
+      MYSQL_PASSWORD: root           # 일반 사용자 비밀번호
+    ports:
+      - "3306:3306"                      # 호스트:컨테이너 포트 매핑
+    volumes:
+      - /d/Development/project/dockerVolumes/pointCalVolume:/var/lib/mysql      # 데이터 영속성을 위한 볼륨
+    restart: unless-stopped              # 컨테이너가 중지되지 않는 한 항상 재시작
