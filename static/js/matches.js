@@ -182,4 +182,34 @@ async function deleteMatch(id) {
         console.error('매치 삭제 에러:', error);
         alert(error.message);
     }
+}
+
+// 승리 팀 설정
+async function setWinner(matchId, teamNumber) {
+    if (!confirm('정말로 이 팀을 승리로 설정하시겠습니까?')) return;
+
+    try {
+        const response = await fetch(`/api/matches/${matchId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                status: teamNumber === 1 ? 'W1' : 'W2'  // W1: 팀1 승리, W2: 팀2 승리
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '승리 팀 설정에 실패했습니다.');
+        }
+
+        const result = await response.json();
+        console.log('승리 팀 설정 응답:', result);
+        alert('승리 팀이 설정되었습니다.');
+        window.location.reload();
+    } catch (error) {
+        console.error('승리 팀 설정 에러:', error);
+        alert(error.message);
+    }
 } 

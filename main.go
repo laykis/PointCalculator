@@ -38,6 +38,7 @@ func main() {
 	teamService := service.NewTeamService(db)
 	gameService := service.NewGameService(db)
 	matchService := service.NewMatchService(db)
+	betService := service.NewBetService(db)
 
 	// 템플릿 로드
 	r.LoadHTMLGlob("templates/*")
@@ -120,6 +121,69 @@ func main() {
 			"teams":   teams,
 		})
 	})
+
+	// 베팅 관리 페이지
+	r.GET("/bets", func(c *gin.Context) {
+
+		// 매치 목록 조회
+		matches, err := matchService.GetMatchList()
+		if err != nil {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+				"error": "매치 목록을 불러오는데 실패했습니다.",
+			})
+			return
+		}
+
+		// 게임 목록 조회
+		games, err := gameService.GetGameList()
+		if err != nil {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+				"error": "게임 목록을 불러오는데 실패했습니다.",
+			})
+			return
+		}
+
+		// 팀 목록 조회
+		teams, err := teamService.GetTeamList()
+		if err != nil {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+				"error": "팀 목록을 불러오는데 실패했습니다.",
+			})
+			return
+		}
+
+		c.HTML(http.StatusOK, "bets.html", gin.H{
+			"title":   "베팅 관리",
+			"matches": matches,
+			"games":   games,
+			"teams":   teams,
+		})
+	})
+
+	betApi := r.Group("/api")
+	{
+		// 베팅하기
+		betApi.POST("/bets", func(c *gin.Context) {
+			var bet model.Bet
+			if err := c.ShouldBindJSON(&bet); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			if _, err := betService.CreateBet(bet); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			c.JSON(http.StatusOK, bet)
+		})
+
+		// 베팅 정보조회(단일)
+		betApi.GET("/bets/:id", func(c *gin.Context) {
+			id := c.Param("id")
+		})
+
+	}
 
 	// 매치 API 엔드포인트
 	matchApi := r.Group("/api")

@@ -29,6 +29,9 @@
                         <a class="nav-link active" href="/matches">매치 관리</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="/bets">베팅 관리</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="/history">히스토리</a>
                     </li>
                 </ul>
@@ -57,6 +60,7 @@
                                 <th>게임</th>
                                 <th>팀1</th>
                                 <th>팀2</th>
+                                <th>상태</th>
                                 <th>관리</th>
                             </tr>
                         </thead>
@@ -65,8 +69,23 @@
                             <tr>
                                 <td>{{.ID}}</td>
                                 <td>{{.GameName}}</td>
-                                <td>{{.Team1Name}}</td>
-                                <td>{{.Team2Name}}</td>
+                                <td>
+                                    {{.Team1Name}}
+                                    <button class="btn btn-sm btn-success ms-2" onclick="setWinner({{.ID}}, 1)">승리</button>
+                                </td>
+                                <td>
+                                    {{.Team2Name}}
+                                    <button class="btn btn-sm btn-success ms-2" onclick="setWinner({{.ID}}, 2)">승리</button>
+                                </td>
+                                <td>
+                                    {{if eq .Status "P"}}
+                                        <span class="badge bg-warning">진행중</span>
+                                    {{else if eq .Status "W1"}}
+                                        <span class="badge bg-success">{{.Team1Name}} 승리</span>
+                                    {{else if eq .Status "W2"}}
+                                        <span class="badge bg-success">{{.Team2Name}} 승리</span>
+                                    {{end}}
+                                </td>
                                 <td>
                                     <button class="btn btn-sm btn-outline-primary me-2" onclick="editMatch({{.ID}})">수정</button>
                                     <button class="btn btn-sm btn-outline-danger" onclick="deleteMatch({{.ID}})">삭제</button>
