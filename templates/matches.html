@@ -71,19 +71,21 @@
                                 <td>{{.GameName}}</td>
                                 <td>
                                     {{.Team1Name}}
-                                    <button class="btn btn-sm btn-success ms-2" onclick="setWinner({{.ID}}, 1)">승리</button>
+                                    {{if eq .Status "P"}}
+                                    <button class="btn btn-sm btn-success ms-2" onclick="setWinner({{.ID}}, {{.PlayerTeamId}})">승리</button>
+                                    {{end}}
                                 </td>
                                 <td>
                                     {{.Team2Name}}
-                                    <button class="btn btn-sm btn-success ms-2" onclick="setWinner({{.ID}}, 2)">승리</button>
+                                    {{if eq .Status "P"}}
+                                    <button class="btn btn-sm btn-success ms-2" onclick="setWinner({{.ID}}, {{.OpponentTeamId}})">승리</button>
+                                    {{end}}
                                 </td>
                                 <td>
                                     {{if eq .Status "P"}}
                                         <span class="badge bg-warning">진행중</span>
-                                    {{else if eq .Status "W1"}}
-                                        <span class="badge bg-success">{{.Team1Name}} 승리</span>
-                                    {{else if eq .Status "W2"}}
-                                        <span class="badge bg-success">{{.Team2Name}} 승리</span>
+                                    {{else if eq .Status "C"}}
+                                        <span class="badge bg-success">완료</span>
                                     {{end}}
                                 </td>
                                 <td>
@@ -206,6 +208,172 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/matches.js"></script>
+    <script>
+        function setWinner(matchId, winnerTeamId) {
+            if (!confirm('승리 팀을 확정하시겠습니까?')) {
+                return;
+            }
+
+            fetch(`/api/matches/${matchId}/result`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    winnerTeamId: winnerTeamId
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('승리 처리 중 오류가 발생했습니다.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('승리 처리가 완료되었습니다.');
+                    location.reload();
+                } else {
+                    alert(data.message || '승리 처리 중 오류가 발생했습니다.');
+                }
+            })
+            .catch(error => {
+                alert(error.message);
+            });
+        }
+
+        function submitMatch() {
+            const gameId = document.getElementById('gameId').value;
+            const team1Id = document.getElementById('team1Id').value;
+            const team2Id = document.getElementById('team2Id').value;
+
+            if (!gameId || !team1Id || !team2Id) {
+                alert('모든 필드를 입력해주세요.');
+                return;
+            }
+
+            if (team1Id === team2Id) {
+                alert('서로 다른 팀을 선택해주세요.');
+                return;
+            }
+
+            const matchData = {
+                gameId: parseInt(gameId),
+                playerTeamId: parseInt(team1Id),
+                opponentTeamId: parseInt(team2Id)
+            };
+
+            fetch('/api/matches', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(matchData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errorData => {
+                        if (errorData.error === 'match already exists') {
+                            throw new Error('중복된 매치입니다.');
+                        }
+                        throw new Error(errorData.error || '매치 추가에 실패했습니다.');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert('매치가 추가되었습니다.');
+                location.reload();
+            })
+            .catch(error => {
+                alert(error.message);
+            });
+        }
+
+        function editMatch(id) {
+            fetch(`/api/matches/${id}`)
+                .then(response => response.json())
+                .then(match => {
+                    document.getElementById('editMatchId').value = match.id;
+                    document.getElementById('editGameId').value = match.gameId;
+                    document.getElementById('editTeam1Id').value = match.playerTeamId;
+                    document.getElementById('editTeam2Id').value = match.opponentTeamId;
+                    
+                    const editModal = new bootstrap.Modal(document.getElementById('editMatchModal'));
+                    editModal.show();
+                })
+                .catch(error => {
+                    alert('매치 정보를 불러오는데 실패했습니다.');
+                });
+        }
+
+        function submitEditMatch() {
+            const id = document.getElementById('editMatchId').value;
+            const gameId = document.getElementById('editGameId').value;
+            const team1Id = document.getElementById('editTeam1Id').value;
+            const team2Id = document.getElementById('editTeam2Id').value;
+
+            if (!gameId || !team1Id || !team2Id) {
+                alert('모든 필드를 입력해주세요.');
+                return;
+            }
+
+            if (team1Id === team2Id) {
+                alert('서로 다른 팀을 선택해주세요.');
+                return;
+            }
+
+            const matchData = {
+                id: parseInt(id),
+                gameId: parseInt(gameId),
+                playerTeamId: parseInt(team1Id),
+                opponentTeamId: parseInt(team2Id)
+            };
+
+            fetch(`/api/matches/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(matchData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('매치 수정 중 오류가 발생했습니다.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert('매치가 수정되었습니다.');
+                location.reload();
+            })
+            .catch(error => {
+                alert(error.message);
+            });
+        }
+
+        function deleteMatch(id) {
+            if (!confirm('정말로 이 매치를 삭제하시겠습니까?')) {
+                return;
+            }
+
+            fetch(`/api/matches/${id}`, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('매치 삭제 중 오류가 발생했습니다.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                alert('매치가 삭제되었습니다.');
+                location.reload();
+            })
+            .catch(error => {
+                alert(error.message);
+            });
+        }
+    </script>
 </body>
 </html> 

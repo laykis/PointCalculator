@@ -5,20 +5,45 @@ function showBetModal(matchId, team1Name, team2Name) {
     document.getElementById('betForm').reset();
     
     // 팀 선택 드롭다운 업데이트
-    const teamSelect = document.getElementById('betTeam');
-    teamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
+    const betTeamSelect = document.getElementById('betTeam');
+    const targetTeamSelect = document.getElementById('targetTeam');
+    betTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
+    targetTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
     
-    const option1 = document.createElement('option');
-    option1.value = '1';
-    option1.textContent = team1Name;
-    teamSelect.appendChild(option1);
+    // 전체 팀 목록 조회 후 베팅하는 팀 옵션 추가
+    fetch('/api/teams')
+        .then(response => response.json())
+        .then(teams => {
+            teams.forEach(team => {
+                const option = document.createElement('option');
+                option.value = team.id;
+                option.textContent = team.name;
+                betTeamSelect.appendChild(option);
+            });
+        });
     
-    const option2 = document.createElement('option');
-    option2.value = '2';
-    option2.textContent = team2Name;
-    teamSelect.appendChild(option2);
-    
-    new bootstrap.Modal(document.getElementById('betModal')).show();
+    // 매치 정보 가져오기 (베팅 대상 팀 옵션 추가)
+    fetch(`/api/matches/${matchId}`)
+        .then(response => response.json())
+        .then(match => {
+            console.log('매치 API 응답:', match); // 실제 응답 확인용
+            // 구조체의 json 태그(camelCase)에 맞춰 접근
+            const targetOption1 = document.createElement('option');
+            targetOption1.value = match.playerTeamId;
+            targetOption1.textContent = team1Name;
+            targetTeamSelect.appendChild(targetOption1);
+            
+            const targetOption2 = document.createElement('option');
+            targetOption2.value = match.opponentTeamId;
+            targetOption2.textContent = team2Name;
+            targetTeamSelect.appendChild(targetOption2);
+            
+            new bootstrap.Modal(document.getElementById('betModal')).show();
+        })
+        .catch(error => {
+            console.error('매치 정보 조회 에러:', error);
+            alert('매치 정보를 불러오는데 실패했습니다.');
+        });
 }
 
 function selectTeam(teamNumber) {
@@ -43,11 +68,17 @@ function selectTeam(teamNumber) {
 function submitBet() {
     const matchId = document.getElementById('matchId').value;
     const betTeam = document.getElementById('betTeam').value;
+    const targetTeam = document.getElementById('targetTeam').value;
     const betType = document.getElementById('betType').value;
     const point = document.getElementById('point').value;
     
     if (!betTeam) {
-        alert('베팅할 팀을 선택해주세요.');
+        alert('베팅하는 팀을 선택해주세요.');
+        return;
+    }
+    
+    if (!targetTeam) {
+        alert('베팅 대상 팀을 선택해주세요.');
         return;
     }
     
@@ -60,6 +91,11 @@ function submitBet() {
         alert('베팅 포인트를 입력해주세요.');
         return;
     }
+
+    if (betTeam === targetTeam) {
+        alert('베팅하는 팀과 베팅 대상 팀이 같을 수 없습니다.');
+        return;
+    }
     
     fetch('/api/bets', {
         method: 'POST',
@@ -67,10 +103,11 @@ function submitBet() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            match_id: matchId,
-            team_number: betTeam,
-            bet_type: betType,
-            point: point
+            match_id: parseInt(matchId),
+            team_id: parseInt(betTeam),
+            target_team_id: parseInt(targetTeam),
+            betting_point: parseInt(point),
+            status: betType
         })
     })
     .then(response => response.json())
@@ -116,15 +153,6 @@ function updateTeamList(matchId, targetSelectId) {
             alert('매치 정보를 불러오는데 실패했습니다.');
         });
 }
-
-// 매치 선택 이벤트 리스너 등록
-document.getElementById('matchId').addEventListener('change', function() {
-    updateTeamList(this.value, 'teamId');
-});
-
-document.getElementById('editMatchId').addEventListener('change', function() {
-    updateTeamList(this.value, 'editTeamId');
-});
 
 // 베팅 수정 모달 열기
 async function editBet(id) {

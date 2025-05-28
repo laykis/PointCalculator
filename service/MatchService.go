@@ -4,6 +4,7 @@ import (
 	"PointCalculator/model"
 	"errors"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -23,9 +24,9 @@ func (s *MatchService) GetMatchList() ([]model.Match, error) {
 	// 매치 정보와 함께 게임과 팀 정보를 조인하여 조회
 	query := s.db.Table("matches").
 		Select("matches.*, games.name as game_name, t1.name as team1_name, t2.name as team2_name").
-		Joins("LEFT JOIN games ON matches.game_id = games.id AND games.use_yn = 'Y'").
-		Joins("LEFT JOIN teams t1 ON matches.player_team_id = t1.id AND t1.use_yn = 'Y'").
-		Joins("LEFT JOIN teams t2 ON matches.opponent_team_id = t2.id AND t2.use_yn = 'Y'").
+		Joins("LEFT JOIN games ON matches.game_id = games.id").
+		Joins("LEFT JOIN teams t1 ON matches.player_team_id = t1.id").
+		Joins("LEFT JOIN teams t2 ON matches.opponent_team_id = t2.id").
 		Where("matches.use_yn = ?", "Y")
 
 	// SQL 쿼리 출력
@@ -51,7 +52,15 @@ func (s *MatchService) GetMatchList() ([]model.Match, error) {
 // 매치 조회
 func (s *MatchService) GetMatch(id int) (model.Match, error) {
 	var match model.Match
-	if err := s.db.Where("id = ? and use_yn = ?", id, "Y").First(&match).Error; err != nil {
+
+	query := s.db.Table("matches").
+		Select("matches.*, games.name as game_name, t1.name as team1_name, t2.name as team2_name").
+		Joins("LEFT JOIN games ON matches.game_id = games.id AND games.use_yn = 'Y'").
+		Joins("LEFT JOIN teams t1 ON matches.player_team_id = t1.id AND t1.use_yn = 'Y'").
+		Joins("LEFT JOIN teams t2 ON matches.opponent_team_id = t2.id AND t2.use_yn = 'Y'").
+		Where("matches.id = ? AND matches.use_yn = ?", id, "Y")
+
+	if err := query.First(&match).Error; err != nil {
 		return model.Match{}, errors.New("match not found")
 	}
 	return match, nil
@@ -62,8 +71,8 @@ func (s *MatchService) CreateMatch(inputMatch model.Match) (model.Match, error) 
 	fmt.Printf("CreateMatch 입력 데이터: %+v\n", inputMatch)
 
 	// 동일한 매치가 이미 존재하는지 확인
-	if s.db.Where("game_id = ? AND player_team_id = ? AND opponent_team_id = ? AND use_yn = ?",
-		inputMatch.GameId, inputMatch.PlayerTeamId, inputMatch.OpponentTeamId, "Y").First(&model.Match{}).Error == nil {
+	if s.db.Where("game_id = ? AND player_team_id = ? AND opponent_team_id = ? AND use_yn = ? AND status != ?",
+		inputMatch.GameId, inputMatch.PlayerTeamId, inputMatch.OpponentTeamId, "Y", "C").First(&model.Match{}).Error == nil {
 		return model.Match{}, errors.New("match already exists")
 	}
 
@@ -113,4 +122,87 @@ func (s *MatchService) DeleteMatch(inputMatch model.Match) (model.Match, error) 
 		return model.Match{}, err
 	}
 	return match, nil
+}
+
+// 매치 결과 처리 및 승리 팀 포인트 지급
+func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
+	// 트랜잭션 시작
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// 매치 정보 조회
+	var match model.Match
+	if err := tx.Where("id = ? and use_yn = ?", matchId, "Y").First(&match).Error; err != nil {
+		tx.Rollback()
+		return errors.New("match not found")
+	}
+
+	// 이미 완료된 매치인지 확인
+	if match.Status == "C" {
+		tx.Rollback()
+		return errors.New("match already completed")
+	}
+
+	// 승리 팀 포인트 업데이트
+	if err := tx.Model(&model.Team{}).
+		Where("id = ?", winnerTeamId).
+		Update("point", gorm.Expr("point + ?", 5)).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 매치 상태 업데이트
+	if err := tx.Model(&match).
+		Updates(map[string]interface{}{
+			"status":     "C",
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 베팅 결과 처리
+	var bets []model.Bet
+	if err := tx.Where("match_id = ? AND use_yn = ?", matchId, "Y").Find(&bets).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	for _, bet := range bets {
+		// 베팅 결과 확인
+		isWin := false
+		if bet.TargetTeamId == winnerTeamId && bet.Status == "W" {
+			// 승리 베팅이 맞은 경우
+			isWin = true
+		} else if bet.TargetTeamId != winnerTeamId && bet.Status == "L" {
+			// 패배 베팅이 맞은 경우
+			isWin = true
+		}
+
+		// 베팅 결과에 따른 포인트 처리
+		if isWin {
+			// 베팅 성공 시 베팅 포인트의 2배를 지급
+			if err := tx.Model(&model.Team{}).
+				Where("id = ?", bet.TeamId).
+				Update("point", gorm.Expr("point + ?", bet.BettingPoint*2)).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+
+		// 베팅 상태 업데이트
+		if err := tx.Model(&bet).
+			Updates(map[string]interface{}{
+				"status":     "C",
+				"updated_at": time.Now(),
+			}).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// 트랜잭션 커밋
+	return tx.Commit().Error
 }

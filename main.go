@@ -17,6 +17,48 @@ import (
 	"gorm.io/gorm"
 )
 
+// 매치 결과 처리 API
+func handleMatchResult(c *gin.Context, db *gorm.DB) {
+	// URL에서 매치 ID 추출
+	matchId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid match ID",
+		})
+		return
+	}
+
+	// 요청 본문 파싱
+	var request struct {
+		WinnerTeamId int `json:"winnerTeamId"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid request body",
+		})
+		return
+	}
+
+	// 매치 결과 처리
+	matchService := service.NewMatchService(db)
+	err = matchService.ProcessMatchResult(matchId, request.WinnerTeamId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 성공 응답
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Match result processed successfully",
+	})
+}
+
 func main() {
 	sqlcon := config.NewDatabaseConfig()
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Asia%%2FSeoul",
@@ -181,6 +223,13 @@ func main() {
 		// 베팅 정보조회(단일)
 		betApi.GET("/bets/:id", func(c *gin.Context) {
 			id := c.Param("id")
+			betID, _ := strconv.Atoi(id)
+			bet, err := betService.GetBet(betID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, bet)
 		})
 
 	}
@@ -406,6 +455,11 @@ func main() {
 		c.HTML(http.StatusOK, "history.html", gin.H{
 			"title": "히스토리",
 		})
+	})
+
+	// API 라우트 추가
+	r.POST("/api/matches/:id/result", func(c *gin.Context) {
+		handleMatchResult(c, db)
 	})
 
 	// 서버 시작

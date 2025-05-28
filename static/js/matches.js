@@ -24,9 +24,9 @@ async function submitMatch() {
     }
 
     const requestData = {
-        game_id: parsedGameId,
-        player_team_id: parsedTeam1Id,
-        opponent_team_id: parsedTeam2Id
+        gameId: parsedGameId,
+        playerTeamId: parsedTeam1Id,
+        opponentTeamId: parsedTeam2Id
     };
 
     console.log('매치 생성 요청 데이터:', requestData);
@@ -46,7 +46,7 @@ async function submitMatch() {
             if (errorData.error === 'match already exists') {
                 throw new Error('중복된 매치입니다.');
             }
-            throw new Error('매치 추가에 실패했습니다.');
+            throw new Error(errorData.error || '매치 추가에 실패했습니다.');
         }
 
         const result = await response.json();
