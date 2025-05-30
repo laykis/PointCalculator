@@ -1,6 +1,27 @@
-let selectedTeam = null;
+// 전역 변수와 함수 선언
+window.selectedTeam = null;
 
-function showBetModal(matchId, team1Name, team2Name) {
+// 페이지 로드 시 실행
+document.addEventListener('DOMContentLoaded', function() {
+    // 진행중인 매치의 베팅 목록 로드
+    document.querySelectorAll('.bet-list-container').forEach(container => {
+        const matchId = container.id.replace('betList-', '');
+        loadBetList(matchId);
+    });
+
+    // 베팅하기 버튼 이벤트 리스너
+    document.querySelectorAll('.bet-button').forEach(button => {
+        button.addEventListener('click', function(event) {
+            const matchId = this.dataset.matchId;
+            const team1Name = this.dataset.team1Name;
+            const team2Name = this.dataset.team2Name;
+            showBetModal(matchId, team1Name, team2Name);
+        });
+    });
+});
+
+// 베팅 모달 표시
+window.showBetModal = function(matchId, team1Name, team2Name) {
     document.getElementById('matchId').value = matchId;
     document.getElementById('betForm').reset();
     
@@ -10,39 +31,48 @@ function showBetModal(matchId, team1Name, team2Name) {
     betTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
     targetTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
     
-    // 전체 팀 목록 조회 후 베팅하는 팀 옵션 추가
-    fetch('/api/teams')
-        .then(response => response.json())
-        .then(teams => {
-            teams.forEach(team => {
-                const option = document.createElement('option');
-                option.value = team.id;
-                option.textContent = team.name;
-                betTeamSelect.appendChild(option);
-            });
-        });
-    
-    // 매치 정보 가져오기 (베팅 대상 팀 옵션 추가)
+    // 매치 정보 먼저 가져오기
     fetch(`/api/matches/${matchId}`)
         .then(response => response.json())
         .then(match => {
-            console.log('매치 API 응답:', match); // 실제 응답 확인용
-            // 구조체의 json 태그(camelCase)에 맞춰 접근
-            const targetOption1 = document.createElement('option');
-            targetOption1.value = match.playerTeamId;
-            targetOption1.textContent = team1Name;
-            targetTeamSelect.appendChild(targetOption1);
+            console.log('매치 API 응답:', match);
             
-            const targetOption2 = document.createElement('option');
-            targetOption2.value = match.opponentTeamId;
-            targetOption2.textContent = team2Name;
-            targetTeamSelect.appendChild(targetOption2);
-            
-            new bootstrap.Modal(document.getElementById('betModal')).show();
+            // 팀 정보 가져오기
+            return fetch('/api/teams')
+                .then(response => response.json())
+                .then(teams => {
+                    // 전체 팀 목록을 베팅 팀 선택에 추가
+                    teams.forEach(team => {
+                        const option = document.createElement('option');
+                        option.value = team.id;
+                        option.textContent = team.name;
+                        betTeamSelect.appendChild(option);
+                    });
+
+                    // 매치의 양 팀을 대상 팀 선택에 추가
+                    const team1 = teams.find(t => t.id === match.playerTeamId);
+                    const team2 = teams.find(t => t.id === match.opponentTeamId);
+
+                    if (team1) {
+                        const targetOption1 = document.createElement('option');
+                        targetOption1.value = match.playerTeamId;
+                        targetOption1.textContent = team1.name;
+                        targetTeamSelect.appendChild(targetOption1);
+                    }
+                    
+                    if (team2) {
+                        const targetOption2 = document.createElement('option');
+                        targetOption2.value = match.opponentTeamId;
+                        targetOption2.textContent = team2.name;
+                        targetTeamSelect.appendChild(targetOption2);
+                    }
+
+                    new bootstrap.Modal(document.getElementById('betModal')).show();
+                });
         })
         .catch(error => {
-            console.error('매치 정보 조회 에러:', error);
-            alert('매치 정보를 불러오는데 실패했습니다.');
+            console.error('데이터 로딩 에러:', error);
+            alert('데이터를 불러오는데 실패했습니다.');
         });
 }
 
@@ -65,7 +95,91 @@ function selectTeam(teamNumber) {
     }
 }
 
-function submitBet() {
+// 매치별 베팅 목록 토글
+window.toggleBetList = function(matchId, event) {
+    console.log('toggleBetList 호출됨:', matchId);
+    // 베팅하기 버튼 클릭 시 이벤트 전파 중단
+    if (event && event.target.tagName === 'BUTTON') {
+        console.log('버튼 클릭으로 인한 이벤트 중단');
+        event.stopPropagation();
+        return;
+    }
+    
+    const betListContainer = document.getElementById(`betList-${matchId}`);
+    console.log('betListContainer:', betListContainer);
+    
+    // 현재 display 상태 확인
+    const isHidden = betListContainer.style.display === 'none' || !betListContainer.style.display;
+    
+    if (isHidden) {
+        console.log('베팅 목록 표시');
+        loadBetList(matchId);
+        betListContainer.style.display = 'block';
+    } else {
+        console.log('베팅 목록 숨김');
+        betListContainer.style.display = 'none';
+    }
+}
+
+// 베팅 목록 로드
+async function loadBetList(matchId) {
+    console.log('loadBetList 시작:', matchId);
+    try {
+        const response = await fetch(`/api/matches/${matchId}/bets`);
+        console.log('API 응답:', response);
+        if (!response.ok) {
+            throw new Error('베팅 목록을 불러오는데 실패했습니다.');
+        }
+
+        const bets = await response.json();
+        console.log('받아온 베팅 목록:', bets);
+        const betListBody = document.getElementById(`betListBody-${matchId}`);
+        console.log('betListBody 엘리먼트:', betListBody);
+        betListBody.innerHTML = '';
+
+        if (bets.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = '<td colspan="5" class="text-center">베팅 내역이 없습니다.</td>';
+            betListBody.appendChild(row);
+            return;
+        }
+
+        bets.forEach(bet => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${bet.team_name || '알 수 없음'}</td>
+                <td>${bet.target_team_name || '알 수 없음'}</td>
+                <td>${bet.status === 'W' ? '승리' : '패배'}</td>
+                <td>${bet.betting_point}</td>
+                <td>
+                    ${getBetStatusBadge(bet.status)}
+                    ${bet.status === 'P' ? `
+                        <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteBet(${bet.id})">삭제</button>
+                    ` : ''}
+                </td>
+            `;
+            betListBody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('베팅 목록 로드 에러:', error);
+        alert(error.message);
+    }
+}
+
+// 베팅 상태 뱃지 생성
+function getBetStatusBadge(status) {
+    switch (status) {
+        case 'P':
+            return '<span class="badge bg-warning">진행중</span>';
+        case 'C':
+            return '<span class="badge bg-success">완료</span>';
+        default:
+            return '<span class="badge bg-secondary">알 수 없음</span>';
+    }
+}
+
+// 베팅 제출
+window.submitBet = function() {
     const matchId = document.getElementById('matchId').value;
     const betTeam = document.getElementById('betTeam').value;
     const targetTeam = document.getElementById('targetTeam').value;
@@ -122,6 +236,29 @@ function submitBet() {
     .catch(error => {
         console.error('Error:', error);
         alert('베팅 중 오류가 발생했습니다.');
+    });
+}
+
+// 베팅 삭제
+window.deleteBet = function(id) {
+    if (!confirm('정말로 이 베팅을 삭제하시겠습니까?')) return;
+
+    fetch(`/api/bets/${id}`, {
+        method: 'DELETE',
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('베팅 삭제에 실패했습니다.');
+        }
+        return response.json();
+    })
+    .then(result => {
+        alert(result.message || '베팅이 삭제되었습니다.');
+        window.location.reload();
+    })
+    .catch(error => {
+        console.error('베팅 삭제 에러:', error);
+        alert(error.message);
     });
 }
 
@@ -236,30 +373,6 @@ async function submitEditBet() {
         window.location.reload();
     } catch (error) {
         console.error('베팅 수정 에러:', error);
-        alert(error.message);
-    }
-}
-
-// 베팅 삭제
-async function deleteBet(id) {
-    if (!confirm('정말로 이 베팅을 삭제하시겠습니까?')) return;
-
-    try {
-        const response = await fetch(`/api/bets/${id}`, {
-            method: 'DELETE',
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '베팅 삭제에 실패했습니다.');
-        }
-
-        const result = await response.json();
-        console.log('베팅 삭제 응답:', result);
-        alert(result.message || '베팅이 삭제되었습니다.');
-        window.location.reload();
-    } catch (error) {
-        console.error('베팅 삭제 에러:', error);
         alert(error.message);
     }
 } 

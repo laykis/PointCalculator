@@ -190,6 +190,14 @@ func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
 				tx.Rollback()
 				return err
 			}
+		} else {
+			// 베팅 실패 시 베팅한 포인트만큼 차감
+			if err := tx.Model(&model.Team{}).
+				Where("id = ?", bet.TeamId).
+				Update("point", gorm.Expr("point - ?", bet.BettingPoint)).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
 		}
 
 		// 베팅 상태 업데이트

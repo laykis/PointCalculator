@@ -17,7 +17,7 @@ func NewBetService(db *gorm.DB) *BetService {
 
 func (s *BetService) CreateBet(inputBet model.Bet) (bool, error) {
 	var teamPoint model.Team
-	if err := s.db.Table("teams").Where("team_id = ?", inputBet.TeamId).First(&teamPoint).Error; err != nil {
+	if err := s.db.Table("teams").Where("id = ?", inputBet.TeamId).First(&teamPoint).Error; err != nil {
 		return false, err
 	}
 

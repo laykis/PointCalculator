@@ -237,6 +237,50 @@ func main() {
 	// 매치 API 엔드포인트
 	matchApi := r.Group("/api")
 	{
+		// 매치별 베팅 목록 조회
+		matchApi.GET("/matches/:id/bets", func(c *gin.Context) {
+			matchId, err := strconv.Atoi(c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "잘못된 매치 ID입니다."})
+				return
+			}
+
+			bets, err := betService.GetBetsByMatchId(matchId)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			// 팀 정보 조회
+			var betsWithTeamNames []gin.H
+			for _, bet := range bets {
+				team, err := teamService.GetTeam(bet.TeamId)
+				if err != nil {
+					continue
+				}
+				targetTeam, err := teamService.GetTeam(bet.TargetTeamId)
+				if err != nil {
+					continue
+				}
+
+				betInfo := gin.H{
+					"id":               bet.ID,
+					"match_id":         bet.MatchID,
+					"team_id":          bet.TeamId,
+					"team_name":        team.Name,
+					"target_team_id":   bet.TargetTeamId,
+					"target_team_name": targetTeam.Name,
+					"betting_point":    bet.BettingPoint,
+					"status":           bet.Status,
+					"created_at":       bet.CreatedAt,
+					"updated_at":       bet.UpdatedAt,
+				}
+				betsWithTeamNames = append(betsWithTeamNames, betInfo)
+			}
+
+			c.JSON(http.StatusOK, betsWithTeamNames)
+		})
+
 		// 매치 정보조회(단일)
 		matchApi.GET("/matches/:id", func(c *gin.Context) {
 
@@ -392,6 +436,16 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusOK, team)
+		})
+
+		// 팀 정보 조회
+		teamApi.GET("/teams", func(c *gin.Context) {
+			teams, err := teamService.GetTeamList()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, teams)
 		})
 
 		// 팀 생성
