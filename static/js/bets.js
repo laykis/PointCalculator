@@ -3,14 +3,23 @@ window.selectedTeam = null;
 
 // 페이지 로드 시 실행
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded 이벤트 발생');
+    
     // 진행중인 매치의 베팅 목록 로드
-    document.querySelectorAll('.bet-list-container').forEach(container => {
+    const containers = document.querySelectorAll('.bet-list-container');
+    console.log('찾은 베팅 목록 컨테이너:', containers.length);
+    
+    containers.forEach(container => {
         const matchId = container.id.replace('betList-', '');
+        console.log('매치 ID:', matchId);
         loadBetList(matchId);
     });
 
     // 베팅하기 버튼 이벤트 리스너
-    document.querySelectorAll('.bet-button').forEach(button => {
+    const buttons = document.querySelectorAll('.bet-button');
+    console.log('찾은 베팅 버튼:', buttons.length);
+    
+    buttons.forEach(button => {
         button.addEventListener('click', function(event) {
             const matchId = this.dataset.matchId;
             const team1Name = this.dataset.team1Name;
@@ -123,18 +132,25 @@ window.toggleBetList = function(matchId, event) {
 
 // 베팅 목록 로드
 async function loadBetList(matchId) {
-    console.log('loadBetList 시작:', matchId);
     try {
+        console.log(`${matchId} 매치의 베팅 목록 로드 시작`);
+        
+        const betListBody = document.getElementById(`betListBody-${matchId}`);
+        if (!betListBody) {
+            console.error(`betListBody-${matchId} 엘리먼트를 찾을 수 없음`);
+            return;
+        }
+        
         const response = await fetch(`/api/matches/${matchId}/bets`);
-        console.log('API 응답:', response);
+        console.log('API 응답 상태:', response.status);
+        
         if (!response.ok) {
             throw new Error('베팅 목록을 불러오는데 실패했습니다.');
         }
 
         const bets = await response.json();
-        console.log('받아온 베팅 목록:', bets);
-        const betListBody = document.getElementById(`betListBody-${matchId}`);
-        console.log('betListBody 엘리먼트:', betListBody);
+        console.log(`${matchId} 매치의 베팅 목록:`, bets);
+
         betListBody.innerHTML = '';
 
         if (bets.length === 0) {
@@ -145,6 +161,7 @@ async function loadBetList(matchId) {
         }
 
         bets.forEach(bet => {
+            console.log('처리중인 베팅:', bet);
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${bet.team_name || '알 수 없음'}</td>
@@ -154,15 +171,14 @@ async function loadBetList(matchId) {
                 <td>
                     ${getBetStatusBadge(bet.status)}
                     ${bet.status === 'P' ? `
-                        <button class="btn btn-sm btn-outline-danger ms-2" onclick="deleteBet(${bet.id})">삭제</button>
+                        <button class="btn btn-sm btn-outline-danger ms-2" onclick="window.deleteBet(${bet.id})">삭제</button>
                     ` : ''}
                 </td>
             `;
             betListBody.appendChild(row);
         });
     } catch (error) {
-        console.error('베팅 목록 로드 에러:', error);
-        alert(error.message);
+        console.error(`${matchId} 매치의 베팅 목록 로드 에러:`, error);
     }
 }
 
