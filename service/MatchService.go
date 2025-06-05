@@ -6,15 +6,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type MatchService struct {
-	db *gorm.DB
+	db          *gorm.DB
+	gameService *GameService
+	teamService *TeamService
 }
 
 func NewMatchService(db *gorm.DB) *MatchService {
-	return &MatchService{db: db}
+	return &MatchService{
+		db:          db,
+		gameService: NewGameService(db),
+		teamService: NewTeamService(db),
+	}
 }
 
 // 매치 목록 조회
@@ -145,7 +152,7 @@ func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
 		return errors.New("match already completed")
 	}
 
-	// 승리 팀 포인트 업데이트
+	// 승리 팀 포인트 업데이트 (기본 승리 포인트 5점)
 	if err := tx.Model(&model.Team{}).
 		Where("id = ?", winnerTeamId).
 		Update("point", gorm.Expr("point + ?", 5)).Error; err != nil {
@@ -173,28 +180,28 @@ func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
 	for _, bet := range bets {
 		// 베팅 결과 확인
 		isWin := false
-		if bet.TargetTeamId == winnerTeamId && bet.Status == "W" {
+		if bet.BetType == "W" && bet.TargetTeamId == winnerTeamId {
 			// 승리 베팅이 맞은 경우
 			isWin = true
-		} else if bet.TargetTeamId != winnerTeamId && bet.Status == "L" {
+		} else if bet.BetType == "L" && bet.TargetTeamId != winnerTeamId {
 			// 패배 베팅이 맞은 경우
 			isWin = true
 		}
 
 		// 베팅 결과에 따른 포인트 처리
 		if isWin {
-			// 베팅 성공 시 베팅 포인트의 2배를 지급
-			if err := tx.Model(&model.Team{}).
-				Where("id = ?", bet.TeamId).
-				Update("point", gorm.Expr("point + ?", bet.BettingPoint*2)).Error; err != nil {
-				tx.Rollback()
-				return err
+			var addPoint int
+			if bet.BettingPoint == 0 {
+				// 베팅 포인트가 0점이면 1점만 지급
+				addPoint = 1
+			} else {
+				// 베팅 성공 시 베팅 포인트의 2배를 지급
+				addPoint = bet.BettingPoint * 2
 			}
-		} else {
-			// 베팅 실패 시 베팅한 포인트만큼 차감
+
 			if err := tx.Model(&model.Team{}).
 				Where("id = ?", bet.TeamId).
-				Update("point", gorm.Expr("point - ?", bet.BettingPoint)).Error; err != nil {
+				Update("point", gorm.Expr("point + ?", addPoint)).Error; err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -213,4 +220,47 @@ func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
 
 	// 트랜잭션 커밋
 	return tx.Commit().Error
+}
+
+// 진행중인 매치 목록 조회
+func (s *MatchService) GetActiveMatches() ([]gin.H, error) {
+	var matches []model.Match
+	if err := s.db.Where("status = ? AND use_yn = ?", "P", "Y").Find(&matches).Error; err != nil {
+		return nil, err
+	}
+
+	var result []gin.H
+	for _, match := range matches {
+		// 게임 정보 조회
+		game, err := s.gameService.GetGame(match.GameId)
+		if err != nil {
+			continue
+		}
+
+		// 팀1 정보 조회
+		team1, err := s.teamService.GetTeam(match.PlayerTeamId)
+		if err != nil {
+			continue
+		}
+
+		// 팀2 정보 조회
+		team2, err := s.teamService.GetTeam(match.OpponentTeamId)
+		if err != nil {
+			continue
+		}
+
+		matchInfo := gin.H{
+			"ID":             match.ID,
+			"GameName":       game.Name,
+			"Team1Name":      team1.Name,
+			"Team2Name":      team2.Name,
+			"PlayerTeamId":   match.PlayerTeamId,
+			"OpponentTeamId": match.OpponentTeamId,
+			"Status":         match.Status,
+			"BetCount":       0, // 기본값 설정 (실제 값은 호출하는 쪽에서 설정)
+		}
+		result = append(result, matchInfo)
+	}
+
+	return result, nil
 }

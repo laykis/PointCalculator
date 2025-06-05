@@ -39,4 +39,102 @@ body {
 .btn-outline-primary:hover {
     background-color: #3498db;
     border-color: #3498db;
+}
+
+/* 매치 대진표 스타일 */
+.match-brackets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+    padding: 20px 0;
+}
+
+.match-card {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 15px;
+    padding: 25px;
+    width: 360px;
+    transition: all 0.3s ease;
+}
+
+.match-card:hover {
+    border-color: #1a73e8;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.game-title {
+    color: #1a73e8;
+    font-size: 1.4em;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+}
+
+.match-teams {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 25px 0;
+    gap: 30px;
+}
+
+.team {
+    flex: 1;
+    text-align: center;
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.team-name {
+    font-weight: 600;
+    font-size: 1.3em;
+    color: #2c3e50;
+    display: block;
+}
+
+.vs {
+    font-weight: bold;
+    font-size: 1.5em;
+    color: #95a5a6;
+}
+
+.match-info {
+    text-align: center;
+    margin-top: 15px;
+}
+
+.bet-count {
+    display: inline-block;
+    padding: 8px 15px;
+    background: white;
+    border-radius: 20px;
+    color: #666;
+    font-weight: 500;
+}
+
+.match-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+    .match-card {
+        width: 100%;
+        max-width: 360px;
+    }
+    
+    .match-teams {
+        gap: 20px;
+    }
+    
+    .team-name {
+        font-size: 1.2em;
+    }
 } 

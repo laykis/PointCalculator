@@ -28,9 +28,9 @@ func (s *GameService) CreateGame(gameName string) (model.Game, error) {
 }
 
 func (s *GameService) UpdateGame(inputGame model.Game) (model.Game, error) {
-	game, err := s.GetGame(inputGame)
-	if err != nil {
-		return model.Game{}, err
+	var game model.Game
+	if err := s.db.Where("id = ? and use_yn = ?", inputGame.ID, "Y").First(&game).Error; err != nil {
+		return model.Game{}, errors.New("game not found")
 	}
 
 	game.Name = inputGame.Name
@@ -53,12 +53,12 @@ func (s *GameService) DeleteGame(inputGame model.Game) (model.Game, error) {
 	return game, nil
 }
 
-func (s *GameService) GetGame(inputGame model.Game) (model.Game, error) {
+func (s *GameService) GetGame(id int) (*model.Game, error) {
 	var game model.Game
-	if err := s.db.Where("id = ? and use_yn = ?", inputGame.ID, "Y").First(&game).Error; err != nil {
-		return model.Game{}, errors.New("game not found")
+	if err := s.db.Where("id = ?", id).First(&game).Error; err != nil {
+		return nil, err
 	}
-	return game, nil
+	return &game, nil
 }
 
 func (s *GameService) GetGameList() ([]model.Game, error) {

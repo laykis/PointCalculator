@@ -185,31 +185,209 @@ async function deleteMatch(id) {
 }
 
 // 승리 팀 설정
-async function setWinner(matchId, teamNumber) {
-    if (!confirm('정말로 이 팀을 승리로 설정하시겠습니까?')) return;
+async function setWinner(matchId, winnerTeamId) {
+    if (!confirm('승리 팀을 확정하시겠습니까?')) {
+        return;
+    }
 
     try {
-        const response = await fetch(`/api/matches/${matchId}`, {
-            method: 'PUT',
+        const response = await fetch(`/api/matches/${matchId}/result`, {
+            method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                status: teamNumber === 1 ? 'W1' : 'W2'  // W1: 팀1 승리, W2: 팀2 승리
-            }),
+                winnerTeamId: winnerTeamId
+            })
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '승리 팀 설정에 실패했습니다.');
+            throw new Error('승리 처리 중 오류가 발생했습니다.');
         }
 
         const result = await response.json();
         console.log('승리 팀 설정 응답:', result);
-        alert('승리 팀이 설정되었습니다.');
-        window.location.reload();
+        
+        if (result.success) {
+            alert('승리 처리가 완료되었습니다.');
+            window.location.reload();
+        } else {
+            alert(result.message || '승리 처리 중 오류가 발생했습니다.');
+        }
     } catch (error) {
         console.error('승리 팀 설정 에러:', error);
+        alert(error.message);
+    }
+}
+
+// 페이지 로드 시 이벤트 리스너 등록
+document.addEventListener('DOMContentLoaded', function() {
+    // 베팅 버튼 클릭 이벤트 (이벤트 위임 사용)
+    document.addEventListener('click', function(event) {
+        const button = event.target.closest('.bet-button');
+        if (button) {
+            event.preventDefault();
+            const matchId = button.dataset.matchId;
+            showBetModal(matchId);
+        }
+    });
+
+    // 베팅 제출 버튼 클릭 이벤트
+    const submitBetButton = document.getElementById('submitBetButton');
+    if (submitBetButton) {
+        submitBetButton.addEventListener('click', submitBet);
+    }
+
+    // 베팅 폼 제출 이벤트
+    const betForm = document.getElementById('betForm');
+    if (betForm) {
+        betForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            submitBet();
+        });
+    }
+
+    // 모달 관련 설정
+    const betModal = document.getElementById('betModal');
+    if (betModal) {
+        const modalInstance = new bootstrap.Modal(betModal);
+        
+        // 모달이 닫힐 때 초기화
+        betModal.addEventListener('hidden.bs.modal', function () {
+            document.body.classList.remove('modal-open');
+            const modalBackdrop = document.querySelector('.modal-backdrop');
+            if (modalBackdrop) {
+                modalBackdrop.remove();
+            }
+            // 폼 초기화
+            betForm.reset();
+            const betTeamSelect = document.getElementById('betTeam');
+            const targetTeamSelect = document.getElementById('targetTeam');
+            if (betTeamSelect) betTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
+            if (targetTeamSelect) targetTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
+        });
+    }
+});
+
+// 베팅 모달 표시
+async function showBetModal(matchId) {
+    try {
+        // 매치 정보 가져오기
+        const matchResponse = await fetch(`/api/matches/${matchId}`).then(res => {
+            if (!res.ok) throw new Error('매치 정보를 가져오는데 실패했습니다.');
+            return res.json();
+        });
+        
+        console.log('매치 API 응답:', matchResponse);
+        
+        // 폼 초기화 및 매치 ID 설정
+        const matchIdInput = document.getElementById('matchId');
+        if (matchIdInput) matchIdInput.value = matchId;
+        
+        // 팀 선택 드롭다운 초기화
+        const betTeamSelect = document.getElementById('betTeam');
+        const targetTeamSelect = document.getElementById('targetTeam');
+        
+        if (betTeamSelect) betTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
+        if (targetTeamSelect) targetTeamSelect.innerHTML = '<option value="">팀을 선택하세요</option>';
+        
+        // 전체 팀 목록을 베팅하는 팀 선택에 추가
+        const teamSelects = document.querySelectorAll('#team1Id option:not(:first-child)');
+        teamSelects.forEach(option => {
+            if (betTeamSelect) {
+                const newOption = option.cloneNode(true);
+                betTeamSelect.appendChild(newOption);
+            }
+        });
+
+        // 매치의 양 팀만 베팅 대상 팀 선택에 추가
+        if (matchResponse.playerTeamId && targetTeamSelect) {
+            const targetOption1 = document.createElement('option');
+            targetOption1.value = matchResponse.playerTeamId;
+            targetOption1.textContent = matchResponse.team1Name;
+            targetTeamSelect.appendChild(targetOption1);
+        }
+        
+        if (matchResponse.opponentTeamId && targetTeamSelect) {
+            const targetOption2 = document.createElement('option');
+            targetOption2.value = matchResponse.opponentTeamId;
+            targetOption2.textContent = matchResponse.team2Name;
+            targetTeamSelect.appendChild(targetOption2);
+        }
+
+        // 모달 표시
+        const betModal = document.getElementById('betModal');
+        if (betModal) {
+            const modalInstance = bootstrap.Modal.getInstance(betModal) || new bootstrap.Modal(betModal);
+            modalInstance.show();
+        }
+    } catch (error) {
+        console.error('데이터 로딩 에러:', error);
+        alert(error.message || '데이터를 불러오는데 실패했습니다.');
+    }
+}
+
+// 베팅 제출
+async function submitBet() {
+    try {
+        const form = document.getElementById('betForm');
+        if (!form) throw new Error('베팅 폼을 찾을 수 없습니다.');
+
+        // 폼 데이터 가져오기
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        
+        // 데이터 유효성 검사
+        if (!data.matchId || !data.teamId || !data.targetTeamId || !data.bet_type || !data.bettingPoint) {
+            throw new Error('모든 필드를 입력해주세요.');
+        }
+
+        // 포인트 유효성 검사
+        const point = parseInt(data.bettingPoint);
+        if (isNaN(point) || point <= 0) {
+            throw new Error('유효한 포인트를 입력해주세요.');
+        }
+
+        // API 요청 데이터 구성
+        const requestData = {
+            match_id: parseInt(data.matchId),
+            team_id: parseInt(data.teamId),
+            target_team_id: parseInt(data.targetTeamId),
+            bet_type: data.bet_type,
+            betting_point: point
+        };
+
+        // API 호출
+        const response = await fetch('/api/bets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '베팅 생성에 실패했습니다.');
+        }
+
+        const result = await response.json();
+        console.log('베팅 생성 응답:', result);
+        
+        // 모달 닫기
+        const betModal = document.getElementById('betModal');
+        if (betModal) {
+            const modalInstance = bootstrap.Modal.getInstance(betModal);
+            if (modalInstance) modalInstance.hide();
+        }
+
+        // 성공 메시지 표시
+        alert('베팅이 생성되었습니다.');
+        
+        // 페이지 새로고침
+        window.location.reload();
+    } catch (error) {
+        console.error('베팅 생성 에러:', error);
         alert(error.message);
     }
 } 

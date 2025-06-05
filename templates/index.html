@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>포인트 계산기</title>
+    <title>홈 - Inspien 포인트 계산기</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -29,7 +29,7 @@
                         <a class="nav-link" href="/matches">매치 관리</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/bets">베팅 관리</a>
+                        <a class="nav-link" href="/bets">베팅 목록</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/history">히스토리</a>
@@ -40,26 +40,69 @@
     </nav>
 
     <div class="container mt-5">
-        <div class="row">
-            <div class="col-md-6 offset-md-3 text-center">
-                <h1 class="display-4 mb-4">포인트 계산기</h1>
-                <p class="lead">팀 포인트를 쉽고 빠르게 관리하세요</p>
-                <div class="mt-5">
-                    <a href="/teams" class="btn btn-primary btn-lg me-3">팀 관리하기</a>
-                    <a href="/games" class="btn btn-primary btn-lg me-3">게임 관리하기</a>
-                    <a href="/history" class="btn btn-outline-primary btn-lg">히스토리 보기</a>
+        <!-- 팀 포인트 현황 -->
+        <div class="row mb-5">
+            <div class="col">
+                <h2 class="mb-4">팀 포인트 현황</h2>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>팀</th>
+                                <th>포인트</th>
+                                <th>진행중인 베팅</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .teams}}
+                            <tr>
+                                <td>{{.Name}}</td>
+                                <td>{{.Point}}</td>
+                                <td>{{.ActiveBets}}</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- 진행중인 매치 -->
+        <div class="row">
+            <div class="col">
+                <h2 class="mb-4">진행중인 매치</h2>
+                {{if .matches}}
+                <div class="match-brackets">
+                    {{range .matches}}
+                    <div class="match-card">
+                        <div class="game-title">{{.GameName}}</div>
+                        <div class="match-teams">
+                            <div class="team team1">{{.Team1Name}}</div>
+                            <div class="vs">VS</div>
+                            <div class="team team2">{{.Team2Name}}</div>
+                        </div>
+                        <div class="match-info">
+                            <span class="bet-count">베팅 {{.BetCount}}건</span>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+                {{else}}
+                <div class="alert alert-info">
+                    진행중인 매치가 없습니다.
+                </div>
+                {{end}}
             </div>
         </div>
     </div>
 
     <footer class="footer mt-5 py-3 bg-light">
         <div class="container text-center">
-            <span class="text-muted">© 2024 포인트 계산기. All rights reserved.</span>
+            <span class="text-muted">© Inspien 포인트 계산기. All rights reserved.</span>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/matches.js"></script>
 </body>
 </html> 

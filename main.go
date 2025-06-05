@@ -90,8 +90,48 @@ func main() {
 
 	// 랜딩 페이지
 	r.GET("/", func(c *gin.Context) {
+		// 팀 목록과 포인트 현황 조회
+		teams, err := teamService.GetTeamList()
+		if err != nil {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+				"error": "팀 목록을 불러오는데 실패했습니다.",
+			})
+			return
+		}
+
+		// 각 팀의 진행중인 베팅 수 조회
+		for i := range teams {
+			activeBets, err := betService.GetActiveBetCountByTeamId(teams[i].ID)
+			if err != nil {
+				teams[i].ActiveBets = 0
+			} else {
+				teams[i].ActiveBets = activeBets
+			}
+		}
+
+		// 진행중인 매치 목록 조회
+		matches, err := matchService.GetActiveMatches()
+		if err != nil {
+			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
+				"error": "매치 목록을 불러오는데 실패했습니다.",
+			})
+			return
+		}
+
+		// 각 매치의 베팅 수 조회
+		for i := range matches {
+			betCount, err := betService.GetBetCountByMatchId(matches[i]["ID"].(int))
+			if err != nil {
+				matches[i]["BetCount"] = 0
+			} else {
+				matches[i]["BetCount"] = betCount
+			}
+		}
+
 		c.HTML(http.StatusOK, "index.html", gin.H{
-			"title": "포인트 계산기",
+			"title":   "홈",
+			"teams":   teams,
+			"matches": matches,
 		})
 	})
 
@@ -166,42 +206,62 @@ func main() {
 
 	// 베팅 관리 페이지
 	r.GET("/bets", func(c *gin.Context) {
-
-		// 매치 목록 조회
-		matches, err := matchService.GetMatchList()
+		// 베팅 목록 조회
+		bets, err := betService.GetBetList()
 		if err != nil {
 			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-				"error": "매치 목록을 불러오는데 실패했습니다.",
+				"error": "베팅 목록을 불러오는데 실패했습니다.",
 			})
 			return
 		}
 
-		// 게임 목록 조회
-		games, err := gameService.GetGameList()
-		if err != nil {
-			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-				"error": "게임 목록을 불러오는데 실패했습니다.",
-			})
-			return
-		}
+		// 베팅 정보에 팀 이름과 게임 이름 추가
+		var betsWithDetails []gin.H
+		for _, bet := range bets {
+			// 베팅 팀 정보 조회
+			team, err := teamService.GetTeam(bet.TeamId)
+			if err != nil {
+				continue
+			}
 
-		// 팀 목록 조회
-		teams, err := teamService.GetTeamList()
-		if err != nil {
-			c.HTML(http.StatusInternalServerError, "error.html", gin.H{
-				"error": "팀 목록을 불러오는데 실패했습니다.",
-			})
-			return
+			// 베팅 대상 팀 정보 조회
+			targetTeam, err := teamService.GetTeam(bet.TargetTeamId)
+			if err != nil {
+				continue
+			}
+
+			// 매치 정보 조회
+			match, err := matchService.GetMatch(bet.MatchID)
+			if err != nil {
+				continue
+			}
+
+			// 게임 정보 조회
+			game, err := gameService.GetGame(match.GameId)
+			if err != nil {
+				continue
+			}
+
+			betInfo := gin.H{
+				"ID":             bet.ID,
+				"MatchID":        bet.MatchID,
+				"GameName":       game.Name,
+				"TeamName":       team.Name,
+				"TargetTeamName": targetTeam.Name,
+				"BetType":        bet.BetType,
+				"BettingPoint":   bet.BettingPoint,
+				"Status":         bet.Status,
+			}
+			betsWithDetails = append(betsWithDetails, betInfo)
 		}
 
 		c.HTML(http.StatusOK, "bets.html", gin.H{
-			"title":   "베팅 관리",
-			"matches": matches,
-			"games":   games,
-			"teams":   teams,
+			"title": "베팅 목록",
+			"bets":  betsWithDetails,
 		})
 	})
 
+	// 베팅 API 엔드포인트
 	betApi := r.Group("/api")
 	{
 		// 베팅하기
@@ -232,6 +292,18 @@ func main() {
 			c.JSON(http.StatusOK, bet)
 		})
 
+		// 베팅 삭제
+		betApi.DELETE("/bets/:id", func(c *gin.Context) {
+			id := c.Param("id")
+			betID, _ := strconv.Atoi(id)
+
+			if err := betService.DeleteBet(betID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"message": "베팅이 삭제되었습니다."})
+		})
 	}
 
 	// 매치 API 엔드포인트
@@ -283,9 +355,7 @@ func main() {
 
 		// 매치 정보조회(단일)
 		matchApi.GET("/matches/:id", func(c *gin.Context) {
-
 			id := c.Param("id")
-
 			matchID, _ := strconv.Atoi(id)
 			match, err := matchService.GetMatch(matchID)
 			if err != nil {
@@ -417,14 +487,12 @@ func main() {
 			}
 
 			c.JSON(http.StatusOK, gin.H{"message": "게임 삭제 완료"})
-
 		})
 	}
 
 	// 팀 API 엔드포인트
 	teamApi := r.Group("/api")
 	{
-
 		// 팀 정보 조회(단일)
 		teamApi.GET("/teams/:id", func(c *gin.Context) {
 			id := c.Param("id")
