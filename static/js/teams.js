@@ -1,8 +1,15 @@
 // 팀 추가
-async function submitTeam() {
+async function addTeam() {
     const teamName = document.getElementById('teamName').value;
+    const teamPoint = parseInt(document.getElementById('teamPoint').value);
+
     if (!teamName) {
         alert('팀 이름을 입력해주세요.');
+        return;
+    }
+
+    if (isNaN(teamPoint) || teamPoint < 0) {
+        alert('유효한 초기 포인트를 입력해주세요.');
         return;
     }
 
@@ -12,29 +19,21 @@ async function submitTeam() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ name: teamName }),
+            body: JSON.stringify({
+                name: teamName,
+                point: teamPoint
+            }),
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            if (errorData.error === 'team already exists') {
-                throw new Error('중복된 팀 이름입니다.');
-            }
-            throw new Error('팀 추가에 실패했습니다.');
+            throw new Error(errorData.error || '팀 생성에 실패했습니다.');
         }
 
-        const result = await response.json();
-        
-        // 모달 닫기
-        const modal = bootstrap.Modal.getInstance(document.getElementById('addTeamModal'));
-        modal.hide();
-
-        // 성공 메시지 표시
-        alert(`${teamName} 팀이 생성되었습니다.`);
-        
-        // 페이지 새로고침
+        // 성공 시 페이지 새로고침
         window.location.reload();
     } catch (error) {
+        console.error('팀 생성 에러:', error);
         alert(error.message);
     }
 }

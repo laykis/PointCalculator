@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>홈 - Inspien 포인트 계산기</title>
+    <title>히스토리 - Inspien 포인트 계산기</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -17,7 +17,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link active" href="/">홈</a>
+                        <a class="nav-link" href="/">홈</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/teams">팀 관리</a>
@@ -32,7 +32,7 @@
                         <a class="nav-link" href="/bets">베팅 관리</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/history">히스토리</a>
+                        <a class="nav-link active" href="/history">히스토리</a>
                     </li>
                 </ul>
             </div>
@@ -40,58 +40,48 @@
     </nav>
 
     <div class="container mt-5">
-        <!-- 팀 포인트 현황 -->
-        <div class="row mb-5">
+        <div class="row mb-4">
             <div class="col">
-                <h2 class="mb-4">팀 포인트 순위 (TOP 3)</h2>
+                <h2 class="mb-4">포인트 히스토리</h2>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                {{if .histories}}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead class="table-light">
                             <tr>
-                                <th>순위</th>
+                                <th>일시</th>
                                 <th>팀</th>
-                                <th>포인트</th>
-                                <th>진행중인 베팅</th>
+                                <th>게임</th>
+                                <th>유형</th>
+                                <th>내용</th>
+                                <th>포인트 변동</th>
+                                <th>최종 포인트</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {{range $index, $team := .teams}}
+                            {{range .histories}}
                             <tr>
-                                <td>{{add $index 1}}</td>
-                                <td>{{$team.Name}}</td>
-                                <td>{{$team.Point}}</td>
-                                <td>{{$team.ActiveBets}}</td>
+                                <td>{{formatTime .created_at}}</td>
+                                <td>{{.team_name}}</td>
+                                <td>{{if .game_name}}{{.game_name}}{{end}}</td>
+                                <td>{{.type_text}}</td>
+                                <td>{{.content}}</td>
+                                <td class="{{if gt .point 0}}text-success{{else if lt .point 0}}text-danger{{end}}">
+                                    {{.point_text}}
+                                </td>
+                                <td>{{.final_point}}</td>
                             </tr>
                             {{end}}
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-
-        <!-- 진행중인 매치 -->
-        <div class="row">
-            <div class="col">
-                <h2 class="mb-4">진행중인 매치</h2>
-                {{if .matches}}
-                <div class="match-brackets">
-                    {{range .matches}}
-                    <div class="match-card">
-                        <div class="game-title">{{.GameName}}</div>
-                        <div class="match-teams">
-                            <div class="team team1">{{.Team1Name}}</div>
-                            <div class="vs">VS</div>
-                            <div class="team team2">{{.Team2Name}}</div>
-                        </div>
-                        <div class="match-info">
-                            <span class="bet-count">베팅 {{.BetCount}}건</span>
-                        </div>
-                    </div>
-                    {{end}}
-                </div>
                 {{else}}
                 <div class="alert alert-info">
-                    진행중인 매치가 없습니다.
+                    기록된 히스토리가 없습니다.
                 </div>
                 {{end}}
             </div>
@@ -105,6 +95,5 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/matches.js"></script>
 </body>
 </html> 

@@ -13,10 +13,10 @@ type Team struct {
 }
 
 // NewTeam creates a new Team instance with default values
-func NewTeam(name string) *Team {
+func NewTeam(name string, point int) *Team {
 	return &Team{
 		Name:      name,
-		Point:     0,
+		Point:     point,
 		UseYn:     "Y",
 		CreatedAt: time.Now(),
 	}

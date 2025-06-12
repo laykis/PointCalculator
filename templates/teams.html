@@ -100,11 +100,15 @@
                             <label for="teamName" class="form-label">팀 이름</label>
                             <input type="text" class="form-control" id="teamName" required>
                         </div>
+                        <div class="mb-3">
+                            <label for="teamPoint" class="form-label">초기 포인트</label>
+                            <input type="number" class="form-control" id="teamPoint" value="0" min="0" required>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="button" class="btn btn-primary" onclick="submitTeam()">추가</button>
+                    <button type="button" class="btn btn-primary" onclick="addTeam()">추가</button>
                 </div>
             </div>
         </div>

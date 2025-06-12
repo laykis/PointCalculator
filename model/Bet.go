@@ -12,12 +12,14 @@ type Bet struct {
 	BettingPoint int       `gorm:"column:betting_point" json:"betting_point"`     // 베팅 포인트
 	BetType      string    `gorm:"column:bet_type" json:"bet_type"`               // 베팅 유형 (W: 승리, L: 패배)
 	Status       string    `gorm:"column:status" json:"status"`                   // 베팅 상태 (P: 진행중, C: 완료)
+	IsDouble     bool      `gorm:"column:is_double" json:"is_double"`             // 더블 찬스 사용 여부
+	IsTriple     bool      `gorm:"column:is_triple" json:"is_triple"`             // 트리플 찬스 사용 여부
 	UseYn        string    `gorm:"column:use_yn" json:"use_yn"`
 	CreatedAt    time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
-func NewBet(matchId int, teamId int, targetTeamId int, bettingPoint int, betType string) *Bet {
+func NewBet(matchId int, teamId int, targetTeamId int, bettingPoint int, betType string, isDouble bool, isTriple bool) *Bet {
 	return &Bet{
 		MatchID:      matchId,
 		TeamId:       teamId,
@@ -25,6 +27,8 @@ func NewBet(matchId int, teamId int, targetTeamId int, bettingPoint int, betType
 		BettingPoint: bettingPoint,
 		BetType:      betType,
 		Status:       "P",
+		IsDouble:     isDouble,
+		IsTriple:     isTriple,
 		UseYn:        "Y",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),

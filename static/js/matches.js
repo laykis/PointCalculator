@@ -348,13 +348,19 @@ async function submitBet() {
             throw new Error('유효한 포인트를 입력해주세요.');
         }
 
+        // 더블/트리플 찬스 체크 상태 가져오기
+        const isDouble = document.getElementById('isDouble').checked;
+        const isTriple = document.getElementById('isTriple').checked;
+
         // API 요청 데이터 구성
         const requestData = {
             match_id: parseInt(data.matchId),
             team_id: parseInt(data.teamId),
             target_team_id: parseInt(data.targetTeamId),
             bet_type: data.bet_type,
-            betting_point: point
+            betting_point: point,
+            is_double: isDouble,
+            is_triple: isTriple
         };
 
         // API 호출
@@ -390,4 +396,37 @@ async function submitBet() {
         console.error('베팅 생성 에러:', error);
         alert(error.message);
     }
-} 
+}
+
+// 랜덤 매치 생성
+document.getElementById('createRandomMatchButton').addEventListener('click', async function() {
+    const gameId = document.getElementById('randomGameId').value;
+    
+    if (!gameId) {
+        alert('게임을 선택해주세요.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/matches/random', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                gameId: parseInt(gameId)
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || '랜덤 매치 생성에 실패했습니다.');
+        }
+
+        // 성공 시 페이지 새로고침
+        window.location.reload();
+    } catch (error) {
+        console.error('랜덤 매치 생성 에러:', error);
+        alert(error.message);
+    }
+}); 

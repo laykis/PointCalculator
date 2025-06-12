@@ -4,6 +4,7 @@ import (
 	"PointCalculator/model"
 	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,7 @@ type MatchService struct {
 	db          *gorm.DB
 	gameService *GameService
 	teamService *TeamService
+	histService *HistService
 }
 
 func NewMatchService(db *gorm.DB) *MatchService {
@@ -21,6 +23,7 @@ func NewMatchService(db *gorm.DB) *MatchService {
 		db:          db,
 		gameService: NewGameService(db),
 		teamService: NewTeamService(db),
+		histService: NewHistService(db),
 	}
 }
 
@@ -152,14 +155,6 @@ func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
 		return errors.New("match already completed")
 	}
 
-	// 승리 팀 포인트 업데이트 (기본 승리 포인트 5점)
-	if err := tx.Model(&model.Team{}).
-		Where("id = ?", winnerTeamId).
-		Update("point", gorm.Expr("point + ?", 5)).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	// 매치 상태 업데이트
 	if err := tx.Model(&match).
 		Updates(map[string]interface{}{
@@ -177,7 +172,24 @@ func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
 		return err
 	}
 
+	// 승리 팀의 현재 포인트 조회
+	var winnerTeam model.Team
+	if err := tx.Where("id = ?", winnerTeamId).First(&winnerTeam).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	for _, bet := range bets {
+		// 베팅한 팀의 현재 포인트 조회
+		var team model.Team
+		if err := tx.Where("id = ?", bet.TeamId).First(&team).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		// 포인트 계산기 초기화
+		accumulator := NewPointAccumulator(team.Point)
+
 		// 베팅 결과 확인
 		isWin := false
 		if bet.BetType == "W" && bet.TargetTeamId == winnerTeamId {
@@ -188,23 +200,87 @@ func (s *MatchService) ProcessMatchResult(matchId int, winnerTeamId int) error {
 			isWin = true
 		}
 
+		var finalPoint int
+		var historyContent string
+		var earnedPoints int
+
 		// 베팅 결과에 따른 포인트 처리
 		if isWin {
-			var addPoint int
-			if bet.BettingPoint == 0 {
-				// 베팅 포인트가 0점이면 1점만 지급
-				addPoint = 1
-			} else {
-				// 베팅 성공 시 베팅 포인트의 2배를 지급
-				addPoint = bet.BettingPoint * 2
+			// 베팅 포인트 처리 (베팅 성공 시 2배 + 1점)
+			accumulator.AddBetPoint(bet.BettingPoint, true)
+			earnedPoints = (bet.BettingPoint * 2) + 1
+
+			// 매치 승리 팀이면 승리 포인트도 추가
+			if bet.TeamId == winnerTeamId {
+				accumulator.AddWinPoint()
+				earnedPoints += WIN_POINT
 			}
 
-			if err := tx.Model(&model.Team{}).
-				Where("id = ?", bet.TeamId).
-				Update("point", gorm.Expr("point + ?", addPoint)).Error; err != nil {
+			// 최종 포인트 계산 (더블/트리플 찬스 적용)
+			finalPoint = accumulator.FinalizePoints(bet.IsDouble, bet.IsTriple)
+
+			// 히스토리 내용 생성
+			historyContent = fmt.Sprintf("매치 #%d - ", matchId)
+
+			// 베팅 성공 내용 추가
+			historyContent += fmt.Sprintf("베팅 성공(%d 포인트)", (bet.BettingPoint*2)+1)
+
+			// 매치 승리 시 내용 추가
+			if bet.TeamId == winnerTeamId {
+				historyContent += fmt.Sprintf(", 매치 승리(%d 포인트)", WIN_POINT)
+			}
+
+			// 찬스 적용 내용 추가
+			if bet.IsDouble && bet.IsTriple {
+				historyContent += ", 더블+트리플 찬스 적용(6배)"
+			} else if bet.IsDouble {
+				historyContent += ", 더블 찬스 적용(2배)"
+			} else if bet.IsTriple {
+				historyContent += ", 트리플 찬스 적용(3배)"
+			}
+
+			// 베팅 성공 히스토리 기록 (모든 획득 포인트를 한 번에 기록)
+			betHist := model.NewHist(
+				bet.TeamId,
+				model.HIST_TYPE_BET_WIN,
+				historyContent,
+				team.Point,
+				finalPoint-team.Point, // 실제 증가된 포인트
+				finalPoint,
+				&matchId,
+				&bet.ID,
+			)
+			if err := tx.Create(betHist).Error; err != nil {
 				tx.Rollback()
 				return err
 			}
+		} else {
+			// 베팅 실패 시 포인트 변동 없음 (이미 베팅 시점에 차감됨)
+			finalPoint = team.Point
+
+			// 베팅 실패 히스토리 기록
+			betHist := model.NewHist(
+				bet.TeamId,
+				model.HIST_TYPE_BET_LOSE,
+				fmt.Sprintf("매치 #%d - 베팅 실패", matchId),
+				team.Point,
+				0,
+				finalPoint,
+				&matchId,
+				&bet.ID,
+			)
+			if err := tx.Create(betHist).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+
+		// 팀 포인트 업데이트
+		if err := tx.Model(&model.Team{}).
+			Where("id = ?", bet.TeamId).
+			Update("point", finalPoint).Error; err != nil {
+			tx.Rollback()
+			return err
 		}
 
 		// 베팅 상태 업데이트
@@ -263,4 +339,48 @@ func (s *MatchService) GetActiveMatches() ([]gin.H, error) {
 	}
 
 	return result, nil
+}
+
+// 랜덤 매치 생성
+func (s *MatchService) CreateRandomMatches(gameId int) error {
+	// 활성화된 모든 팀 조회
+	var teams []model.Team
+	if err := s.db.Where("use_yn = ?", "Y").Find(&teams).Error; err != nil {
+		return err
+	}
+
+	// 팀이 2개 미만이면 에러
+	if len(teams) < 2 {
+		return errors.New("매치 생성을 위한 팀이 부족합니다")
+	}
+
+	// 팀 순서를 랜덤하게 섞기
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(teams), func(i, j int) {
+		teams[i], teams[j] = teams[j], teams[i]
+	})
+
+	// 매치를 만들 수 있는 최대 팀 수 계산 (짝수로 맞추기)
+	matchableTeams := len(teams)
+	if matchableTeams%2 != 0 {
+		matchableTeams--
+	}
+
+	// 트랜잭션 시작
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	// 2개 팀씩 매치 생성
+	for i := 0; i < matchableTeams; i += 2 {
+		match := model.NewMatch(gameId, teams[i].ID, teams[i+1].ID)
+		if err := tx.Create(match).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	// 트랜잭션 커밋
+	return tx.Commit().Error
 }

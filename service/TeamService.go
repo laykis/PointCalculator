@@ -17,7 +17,15 @@ func NewTeamService(db *gorm.DB) *TeamService {
 
 func (s *TeamService) GetTeamList() ([]model.Team, error) {
 	var teams []model.Team
-	if err := s.db.Where("use_yn = ?", "Y").Find(&teams).Error; err != nil {
+	if err := s.db.Where("use_yn = ?", "Y").Order("point DESC").Find(&teams).Error; err != nil {
+		return nil, err
+	}
+	return teams, nil
+}
+
+func (s *TeamService) GetTopTeams() ([]model.Team, error) {
+	var teams []model.Team
+	if err := s.db.Where("use_yn = ?", "Y").Order("point DESC").Limit(3).Find(&teams).Error; err != nil {
 		return nil, err
 	}
 	return teams, nil
@@ -31,13 +39,12 @@ func (s *TeamService) GetTeam(id int) (model.Team, error) {
 	return team, nil
 }
 
-func (s *TeamService) CreateTeam(name string) (model.Team, error) {
-
+func (s *TeamService) CreateTeam(name string, point int) (model.Team, error) {
 	if s.db.Where("name = ? and use_yn = ?", name, "Y").First(&model.Team{}).Error == nil {
 		return model.Team{}, errors.New("team already exists")
 	}
 
-	team := model.NewTeam(name)
+	team := model.NewTeam(name, point)
 	if err := s.db.Create(team).Error; err != nil {
 		return model.Team{}, err
 	}

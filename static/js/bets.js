@@ -106,110 +106,81 @@ function getBetStatusBadge(status) {
     }
 }
 
-// 베팅 삭제
-window.deleteBet = function(id) {
-    if (!confirm('정말로 이 베팅을 삭제하시겠습니까?')) return;
-
-    fetch(`/api/bets/${id}`, {
-        method: 'DELETE',
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('베팅 삭제에 실패했습니다.');
-        }
-        return response.json();
-    })
-    .then(result => {
-        alert(result.message || '베팅이 삭제되었습니다.');
-        window.location.reload();
-    })
-    .catch(error => {
-        console.error('베팅 삭제 에러:', error);
-        alert(error.message);
-    });
-}
+// 베팅 수정 모달
+const editBetModal = new bootstrap.Modal(document.getElementById('editBetModal'));
+let currentBetId = null;
 
 // 베팅 수정 모달 열기
-async function editBet(id) {
+window.editBet = async (betId) => {
     try {
-        const response = await fetch(`/api/bets/${id}`);
+        const response = await fetch(`/api/bets/${betId}`);
         if (!response.ok) {
             throw new Error('베팅 정보를 불러오는데 실패했습니다.');
         }
-
         const bet = await response.json();
-        console.log('수정할 베팅 정보:', bet);
-
-        // 모달에 현재 값 설정
-        document.getElementById('editBetId').value = bet.id;
-        document.getElementById('editMatchId').value = bet.match_id;
-        document.getElementById('editTeamId').value = bet.team_id;
-        document.getElementById('editPoint').value = bet.point;
-
-        // 모달 표시
-        const modal = new bootstrap.Modal(document.getElementById('editBetModal'));
-        modal.show();
+        
+        // 모달에 기존 베팅 정보 설정
+        document.getElementById('editBetId').value = bet.ID;
+        document.getElementById('editBetType').value = bet.BetType;
+        document.getElementById('editBettingPoint').value = bet.BettingPoint;
+        document.getElementById('editIsDouble').checked = bet.IsDouble;
+        document.getElementById('editIsTriple').checked = bet.IsTriple;
+        
+        currentBetId = betId;
+        editBetModal.show();
     } catch (error) {
-        console.error('베팅 정보 조회 에러:', error);
         alert(error.message);
     }
-}
+};
 
 // 베팅 수정 제출
-async function submitEditBet() {
-    const betId = document.getElementById('editBetId').value;
-    const matchId = document.getElementById('editMatchId').value;
-    const teamId = document.getElementById('editTeamId').value;
-    const point = document.getElementById('editPoint').value;
+window.submitEditBet = async () => {
+    if (!currentBetId) return;
 
-    if (!matchId || !teamId || !point) {
-        alert('모든 필드를 입력해주세요.');
-        return;
-    }
-
-    const parsedMatchId = parseInt(matchId);
-    const parsedTeamId = parseInt(teamId);
-    const parsedPoint = parseInt(point);
-
-    if (isNaN(parsedMatchId) || isNaN(parsedTeamId) || isNaN(parsedPoint)) {
-        alert('유효하지 않은 값입니다.');
-        return;
-    }
-
-    const requestData = {
-        match_id: parsedMatchId,
-        team_id: parsedTeamId,
-        point: parsedPoint
+    const formData = {
+        betType: document.getElementById('editBetType').value,
+        bettingPoint: parseInt(document.getElementById('editBettingPoint').value),
+        isDouble: document.getElementById('editIsDouble').checked,
+        isTriple: document.getElementById('editIsTriple').checked
     };
 
     try {
-        const response = await fetch(`/api/bets/${betId}`, {
+        const response = await fetch(`/api/bets/${currentBetId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestData),
+            body: JSON.stringify(formData)
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || '베팅 수정에 실패했습니다.');
+            throw new Error('베팅 수정에 실패했습니다.');
         }
 
-        const result = await response.json();
-        console.log('베팅 수정 응답:', result);
-        
-        // 모달 닫기
-        const modal = bootstrap.Modal.getInstance(document.getElementById('editBetModal'));
-        modal.hide();
-
-        // 성공 메시지 표시
-        alert('베팅이 수정되었습니다.');
-        
-        // 페이지 새로고침
+        editBetModal.hide();
         window.location.reload();
     } catch (error) {
-        console.error('베팅 수정 에러:', error);
         alert(error.message);
     }
-} 
+};
+
+// 베팅 삭제
+window.deleteBet = async (betId) => {
+    if (!confirm('정말로 이 베팅을 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/bets/${betId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('베팅 삭제에 실패했습니다.');
+        }
+
+        window.location.reload();
+    } catch (error) {
+        alert(error.message);
+    }
+}; 
